@@ -1,0 +1,104 @@
+name: bump-version-on-merge
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  bump:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Determine bump label
+        id: label
+        shell: bash
+        run: |
+          set -euo pipefail
+          labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+
+          major=0
+          minor=0
+          patch=0
+
+          if echo "$labels" | grep -Eq '"major"'; then major=1; fi
+          if echo "$labels" | grep -Eq '"minor"'; then minor=1; fi
+          if echo "$labels" | grep -Eq '"patch"'; then patch=1; fi
+
+          count=$((major + minor + patch))
+          if [ "$count" -eq 0 ]; then
+            echo "No version label found (major/minor/patch). Skipping bump."
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$count" -gt 1 ]; then
+            echo "PR has multiple version labels; expected exactly one of major/minor/patch."
+            exit 1
+          fi
+
+          if [ "$major" -eq 1 ]; then echo "bump=major" >> "$GITHUB_OUTPUT"; fi
+          if [ "$minor" -eq 1 ]; then echo "bump=minor" >> "$GITHUB_OUTPUT"; fi
+          if [ "$patch" -eq 1 ]; then echo "bump=patch" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Bump VERSION
+        if: steps.label.outputs.bump != 'none'
+        id: bump
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(tr -d '[:space:]' < VERSION)"
+
+          if ! echo "$current" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "VERSION must be strict semver core (MAJOR.MINOR.PATCH). Found: $current"
+            exit 1
+          fi
+
+          IFS='.' read -r major minor patch <<< "$current"
+
+          case "${{ steps.label.outputs.bump }}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          next="$major.$minor.$patch"
+          printf '%s\n' "$next" > VERSION
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "Bumped VERSION: $current -> $next"
+
+      - name: Commit VERSION change
+        if: steps.label.outputs.bump != 'none'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add VERSION
+          if git diff --staged --quiet; then
+            echo "No version change to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.next }} [skip ci]"
+          git push origin HEAD:${{ github.event.repository.default_branch }}
