@@ -33,6 +33,8 @@ func main() {
 	mux.HandleFunc("/", srv.HandleIndex)
 	mux.HandleFunc("/provision", srv.HandleProvision)
 	mux.HandleFunc("/consume", srv.HandleConsume)
+	mux.HandleFunc("/force-replace", srv.HandleForceReplace)
+	mux.HandleFunc("/status", srv.HandleStatus)
 	mux.HandleFunc("/user-data", srv.HandleUserData)
 	mux.HandleFunc("/meta-data", srv.HandleMetaData)
 
