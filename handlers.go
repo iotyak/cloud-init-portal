@@ -90,7 +90,7 @@ func (s *Server) HandleProvision(w http.ResponseWriter, r *http.Request) {
 	gateway := strings.TrimSpace(r.FormValue("gateway"))
 	dns := ParseDNS(r.FormValue("dns"))
 	if len(dns) == 0 {
-		dns = []string{"1.1.1.1", "8.8.8.8"}
+		dns = []string{"10.4.99.99", "10.6.99.99"}
 	}
 
 	if err := validateInput(templateName, boxTypeName, hostname, staticIP, cidr, s.Templates, s.BoxTypes); err != nil {
