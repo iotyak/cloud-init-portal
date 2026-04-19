@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+const (
+	StatusNoActive       = "No active config"
+	StatusReady          = "Ready"
+	StatusUserDataServed = "User-data served"
+	StatusMetaDataServed = "Meta-data served"
+	StatusConsumed       = "Consumed"
+)
+
 type BoxType struct {
 	Name                string
 	BootstrapInterface  string
@@ -46,14 +54,31 @@ type ActiveConfig struct {
 	MetaDataServed bool
 }
 
+type ProvisionStatus struct {
+	Hostname     string
+	StaticIP     string
+	TemplateName string
+	BoxTypeName  string
+	Status       string
+	GeneratedAt  time.Time
+	Active       bool
+}
+
 type Store struct {
 	mu                sync.Mutex
 	current           *ActiveConfig
 	consumedHostnames map[string]time.Time
+	status            ProvisionStatus
 }
 
 func NewStore() *Store {
-	return &Store{consumedHostnames: make(map[string]time.Time)}
+	return &Store{
+		consumedHostnames: make(map[string]time.Time),
+		status: ProvisionStatus{
+			Status: StatusNoActive,
+			Active: false,
+		},
+	}
 }
 
 func (s *Store) SetCurrent(cfg *ActiveConfig) error {
@@ -63,11 +88,15 @@ func (s *Store) SetCurrent(cfg *ActiveConfig) error {
 	if cfg == nil {
 		return errors.New("nil config")
 	}
+	if s.current != nil {
+		return errors.New("active config already exists; use Force Replace Current first")
+	}
 	if _, exists := s.consumedHostnames[cfg.Hostname]; exists {
 		return fmt.Errorf("hostname %q already consumed in this process; choose a new hostname", cfg.Hostname)
 	}
 
 	s.current = cfg
+	s.status = statusFromConfigLocked(s.current, StatusReady, true)
 	return nil
 }
 
@@ -81,6 +110,12 @@ func (s *Store) GetCurrent() *ActiveConfig {
 	return &copy
 }
 
+func (s *Store) CurrentStatus() ProvisionStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.status
+}
+
 func (s *Store) ServeUserData() (cfg *ActiveConfig, consumed bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,7 +125,14 @@ func (s *Store) ServeUserData() (cfg *ActiveConfig, consumed bool, err error) {
 	}
 	s.current.UserDataServed = true
 	copy := *s.current
+
 	consumed = s.maybeConsumeLocked()
+	if consumed {
+		s.status = statusFromConfigValue(copy, StatusConsumed, false)
+	} else {
+		s.status = statusFromConfigLocked(s.current, StatusUserDataServed, true)
+	}
+
 	return &copy, consumed, nil
 }
 
@@ -103,7 +145,14 @@ func (s *Store) ServeMetaData() (cfg *ActiveConfig, consumed bool, err error) {
 	}
 	s.current.MetaDataServed = true
 	copy := *s.current
+
 	consumed = s.maybeConsumeLocked()
+	if consumed {
+		s.status = statusFromConfigValue(copy, StatusConsumed, false)
+	} else {
+		s.status = statusFromConfigLocked(s.current, StatusMetaDataServed, true)
+	}
+
 	return &copy, consumed, nil
 }
 
@@ -116,6 +165,19 @@ func (s *Store) ManualConsume() (*ActiveConfig, error) {
 	cfg := *s.current
 	s.consumedHostnames[s.current.Hostname] = time.Now()
 	s.current = nil
+	s.status = statusFromConfigValue(cfg, StatusConsumed, false)
+	return &cfg, nil
+}
+
+func (s *Store) ForceReplace() (*ActiveConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.current == nil {
+		return nil, errors.New("no active config")
+	}
+	cfg := *s.current
+	s.current = nil
+	s.status = ProvisionStatus{Status: StatusNoActive, Active: false}
 	return &cfg, nil
 }
 
@@ -129,6 +191,25 @@ func (s *Store) maybeConsumeLocked() bool {
 	s.consumedHostnames[s.current.Hostname] = time.Now()
 	s.current = nil
 	return true
+}
+
+func statusFromConfigLocked(cfg *ActiveConfig, state string, active bool) ProvisionStatus {
+	if cfg == nil {
+		return ProvisionStatus{Status: StatusNoActive, Active: false}
+	}
+	return statusFromConfigValue(*cfg, state, active)
+}
+
+func statusFromConfigValue(cfg ActiveConfig, state string, active bool) ProvisionStatus {
+	return ProvisionStatus{
+		Hostname:     cfg.Hostname,
+		StaticIP:     fmt.Sprintf("%s/%s", cfg.StaticIP, cfg.CIDR),
+		TemplateName: cfg.TemplateName,
+		BoxTypeName:  cfg.BoxTypeName,
+		Status:       state,
+		GeneratedAt:  cfg.CreatedAt,
+		Active:       active,
+	}
 }
 
 func ParseDNS(input string) []string {
