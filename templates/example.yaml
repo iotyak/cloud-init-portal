@@ -1,0 +1,39 @@
+#cloud-config
+hostname: {{.Hostname}}
+manage_etc_hosts: true
+
+write_files:
+  - path: /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any --timeout=20
+
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, restart, systemd-networkd-wait-online.service]
+
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    {{.BootstrapInterface}}:
+      dhcp4: true
+    {{.ProductionInterface}}:
+      dhcp4: false
+      addresses:
+        - {{.ProductionAddress}}
+{{- if .Gateway }}
+      routes:
+        - to: default
+          via: {{.Gateway}}
+{{- end }}
+{{- if .DNS }}
+      nameservers:
+        addresses:
+{{- range .DNS }}
+          - {{.}}
+{{- end }}
+{{- end }}
