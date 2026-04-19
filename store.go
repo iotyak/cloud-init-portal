@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -69,16 +73,30 @@ type Store struct {
 	current           *ActiveConfig
 	consumedHostnames map[string]time.Time
 	status            ProvisionStatus
+	stateFile         string
 }
 
 func NewStore() *Store {
-	return &Store{
+	store, err := NewStoreWithPersistence("")
+	if err != nil {
+		panic(err)
+	}
+	return store
+}
+
+func NewStoreWithPersistence(stateFile string) (*Store, error) {
+	s := &Store{
 		consumedHostnames: make(map[string]time.Time),
 		status: ProvisionStatus{
 			Status: StatusNoActive,
 			Active: false,
 		},
+		stateFile: strings.TrimSpace(stateFile),
 	}
+	if err := s.loadState(); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 func (s *Store) SetCurrent(cfg *ActiveConfig) error {
@@ -97,6 +115,7 @@ func (s *Store) SetCurrent(cfg *ActiveConfig) error {
 
 	s.current = cfg
 	s.status = statusFromConfigLocked(s.current, StatusReady, true)
+	s.persistLocked("set_current")
 	return nil
 }
 
@@ -132,6 +151,7 @@ func (s *Store) ServeUserData() (cfg *ActiveConfig, consumed bool, err error) {
 	} else {
 		s.status = statusFromConfigLocked(s.current, StatusUserDataServed, true)
 	}
+	s.persistLocked("serve_user_data")
 
 	return &copy, consumed, nil
 }
@@ -152,6 +172,7 @@ func (s *Store) ServeMetaData() (cfg *ActiveConfig, consumed bool, err error) {
 	} else {
 		s.status = statusFromConfigLocked(s.current, StatusMetaDataServed, true)
 	}
+	s.persistLocked("serve_meta_data")
 
 	return &copy, consumed, nil
 }
@@ -166,6 +187,7 @@ func (s *Store) ManualConsume() (*ActiveConfig, error) {
 	s.consumedHostnames[s.current.Hostname] = time.Now()
 	s.current = nil
 	s.status = statusFromConfigValue(cfg, StatusConsumed, false)
+	s.persistLocked("manual_consume")
 	return &cfg, nil
 }
 
@@ -178,6 +200,7 @@ func (s *Store) ForceReplace() (*ActiveConfig, error) {
 	cfg := *s.current
 	s.current = nil
 	s.status = ProvisionStatus{Status: StatusNoActive, Active: false}
+	s.persistLocked("force_replace")
 	return &cfg, nil
 }
 
@@ -226,4 +249,75 @@ func ParseDNS(input string) []string {
 		out = append(out, v)
 	}
 	return out
+}
+
+type persistedState struct {
+	Current           *ActiveConfig        `json:"current"`
+	ConsumedHostnames map[string]time.Time `json:"consumed_hostnames"`
+	Status            ProvisionStatus      `json:"status"`
+}
+
+func (s *Store) persistLocked(action string) {
+	if s.stateFile == "" {
+		return
+	}
+	if err := s.saveStateLocked(); err != nil {
+		log.Printf("store persistence warning action=%s err=%v", action, err)
+	}
+}
+
+func (s *Store) loadState() error {
+	if s.stateFile == "" {
+		return nil
+	}
+	b, err := os.ReadFile(s.stateFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read state file: %w", err)
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		return nil
+	}
+
+	var state persistedState
+	if err := json.Unmarshal(b, &state); err != nil {
+		return fmt.Errorf("unmarshal state file: %w", err)
+	}
+	if state.ConsumedHostnames == nil {
+		state.ConsumedHostnames = make(map[string]time.Time)
+	}
+
+	s.current = state.Current
+	s.consumedHostnames = state.ConsumedHostnames
+	if state.Status.Status == "" {
+		s.status = ProvisionStatus{Status: StatusNoActive, Active: false}
+	} else {
+		s.status = state.Status
+	}
+	return nil
+}
+
+func (s *Store) saveStateLocked() error {
+	if s.stateFile == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(s.stateFile), 0o755); err != nil {
+		return fmt.Errorf("mkdir state dir: %w", err)
+	}
+
+	state := persistedState{
+		Current:           s.current,
+		ConsumedHostnames: s.consumedHostnames,
+		Status:            s.status,
+	}
+	b, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal state: %w", err)
+	}
+	if err := os.WriteFile(s.stateFile, b, 0o600); err != nil {
+		return fmt.Errorf("write state file: %w", err)
+	}
+	return nil
 }
