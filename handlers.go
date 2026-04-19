@@ -93,7 +93,7 @@ func (s *Server) HandleProvision(w http.ResponseWriter, r *http.Request) {
 		dns = []string{"10.4.99.99", "10.6.99.99"}
 	}
 
-	if err := validateInput(templateName, boxTypeName, hostname, staticIP, cidr, s.Templates, s.BoxTypes); err != nil {
+	if err := validateInput(templateName, boxTypeName, hostname, staticIP, cidr, gateway, dns, s.Templates, s.BoxTypes); err != nil {
 		s.renderError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -252,7 +252,7 @@ func renderTemplate(t CloudInitTemplate, data RenderData) (string, error) {
 	return buf.String(), nil
 }
 
-func validateInput(templateName, boxTypeName, hostname, staticIP, cidr string, templates map[string]CloudInitTemplate, boxTypes map[string]BoxType) error {
+func validateInput(templateName, boxTypeName, hostname, staticIP, cidr, gateway string, dns []string, templates map[string]CloudInitTemplate, boxTypes map[string]BoxType) error {
 	if _, ok := templates[templateName]; !ok {
 		return errors.New("unknown template")
 	}
@@ -268,6 +268,16 @@ func validateInput(templateName, boxTypeName, hostname, staticIP, cidr string, t
 	n, err := strconv.Atoi(cidr)
 	if err != nil || n < 1 || n > 32 {
 		return errors.New("invalid CIDR (expected 1-32)")
+	}
+	if strings.TrimSpace(gateway) != "" {
+		if ip := net.ParseIP(gateway); ip == nil {
+			return errors.New("invalid gateway IP")
+		}
+	}
+	for _, dnsIP := range dns {
+		if ip := net.ParseIP(strings.TrimSpace(dnsIP)); ip == nil {
+			return fmt.Errorf("invalid DNS server IP: %s", dnsIP)
+		}
 	}
 	return nil
 }
