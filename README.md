@@ -12,6 +12,8 @@ Single-binary Go web app for generating and serving cloud-init files for bare-me
   - `GET /` UI
   - `POST /provision` generate current config
   - `POST /consume` manual consume/clear
+  - `POST /force-replace` discard active config and allow immediate replacement
+  - `GET /status` current provisioning status as JSON
   - `GET /user-data` rendered cloud-init user-data
   - `GET /meta-data` rendered cloud-init meta-data
 - Keeps only one active config in memory (no DB)
@@ -72,6 +74,12 @@ Template placeholders available:
 - `{{range .DNS}}...{{end}}`
 
 The app parses templates at startup with `missingkey=error`.
+
+Input validation:
+- `hostname` must be RFC1123-ish label (letters/numbers/dash, max 63)
+- `static_ip` and optional `gateway` must be valid IP addresses
+- each DNS entry must be a valid IP address
+- `cidr` must be in range `1-32`
 
 ## Example rendered user-data (from templates/example.yaml)
 
