@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,24 +99,26 @@ func TestUserDataAndMetaDataMethodGuards(t *testing.T) {
 func TestRequestBaseURLFallbackWhenHostMissing(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Host = ""
-	if got, want := requestBaseURL(req), "http://127.0.0.1:8080"; got != want {
+	if got, want := requestBaseURL(req, "", false), "http://127.0.0.1:8080"; got != want {
 		t.Fatalf("requestBaseURL()=%q want %q", got, want)
 	}
 }
 
-func TestLoggingMiddlewarePassThrough(t *testing.T) {
-	h := loggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		_, _ = io.WriteString(w, "ok")
-	}))
+func TestRequestBaseURLPublicOverrideAndProxyRules(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "attacker.local"
+	req.Header.Set("X-Forwarded-Host", "forwarded.local")
+	req.Header.Set("X-Forwarded-Proto", "https")
 
-	req := httptest.NewRequest(http.MethodGet, "/x", nil)
-	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("status=%d want %d", rr.Code, http.StatusCreated)
+	if got, want := requestBaseURL(req, "https://portal.example.com/", false), "https://portal.example.com"; got != want {
+		t.Fatalf("public override got=%q want=%q", got, want)
 	}
-	if rr.Body.String() != "ok" {
-		t.Fatalf("body=%q want ok", rr.Body.String())
+
+	if got, want := requestBaseURL(req, "", false), "http://attacker.local"; got != want {
+		t.Fatalf("without trust proxy got=%q want=%q", got, want)
+	}
+
+	if got, want := requestBaseURL(req, "", true), "https://forwarded.local"; got != want {
+		t.Fatalf("with trust proxy got=%q want=%q", got, want)
 	}
 }
