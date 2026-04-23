@@ -1,7 +1,7 @@
 ---
 version: alpha
-name: Cloud-Init Portal Console
-description: Minimal, utilitarian operations UI for generating and monitoring one active cloud-init provisioning configuration.
+name: Cloud-Init Provisioning Console
+description: Minimal operations UI focused on creating one provisioning config and tracking its generated/consumed lifecycle.
 colors:
   primary: "#111111"
   secondary: "#555555"
@@ -13,9 +13,7 @@ colors:
   danger: "#B40000"
   dangerText: "#FFFFFF"
   successBackground: "#E9FFF0"
-  successBorder: "#77CC77"
   errorBackground: "#FFE9E9"
-  errorBorder: "#EE8888"
 
 typography:
   h1:
@@ -76,13 +74,11 @@ rounded:
 
 spacing:
   pageMarginY: 2rem
-  pageMarginX: auto
   pageMaxWidth: 980px
   labelTop: 0.6rem
   controlPadding: 0.55rem
   buttonMarginTop: 0.8rem
-  buttonPaddingY: 0.6rem
-  buttonPaddingX: 1rem
+  buttonPadding: 0.6rem
   feedbackPadding: 0.7rem
   feedbackMarginBottom: 0.7rem
   cardPadding: 0.9rem
@@ -116,29 +112,29 @@ components:
     textColor: "{colors.primary}"
     rounded: "{rounded.md}"
     padding: "{spacing.cardPadding}"
-  input:
+  config-select:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.primary}"
     typography: "{typography.input}"
     padding: "{spacing.controlPadding}"
     width: 100%
-  select:
+  config-input:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.primary}"
     typography: "{typography.input}"
     padding: "{spacing.controlPadding}"
     width: 100%
-  button:
+  button-primary:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.primary}"
     typography: "{typography.button}"
-    padding: "{spacing.buttonPaddingY} {spacing.buttonPaddingX}"
+    padding: "{spacing.buttonPadding}"
   button-danger:
     backgroundColor: "{colors.danger}"
     textColor: "{colors.dangerText}"
     typography: "{typography.button}"
     rounded: "{rounded.none}"
-    padding: "{spacing.buttonPaddingY} {spacing.buttonPaddingX}"
+    padding: "{spacing.buttonPadding}"
   feedback-error:
     backgroundColor: "{colors.errorBackground}"
     textColor: "{colors.primary}"
@@ -148,16 +144,16 @@ components:
     textColor: "{colors.primary}"
     typography: "{typography.feedbackSuccess}"
     padding: "{spacing.feedbackPadding}"
-  table-status-cell:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.primary}"
-    padding: "{spacing.tableCellPadding}"
-  table-status-header:
+  status-table-header:
     backgroundColor: "{colors.surfaceSubtle}"
     textColor: "{colors.primary}"
     typography: "{typography.label}"
     width: 220px
-  code-block:
+  status-table-cell:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    padding: "{spacing.tableCellPadding}"
+  generated-details-code:
     backgroundColor: "{colors.codeBackground}"
     textColor: "{colors.codeText}"
     typography: "{typography.codeBlock}"
@@ -166,86 +162,91 @@ components:
 
 ## Overview
 
-This interface is an operations console: direct, high-density, and practical. It prioritizes immediate task completion over decorative polish. The visual identity is intentionally restrained so field labels, status values, and procedural instructions dominate attention.
+This UI is a strict provisioning console with one purpose: capture the minimum configuration required to generate a cloud-init configuration, then show what was generated and whether it has been consumed.
 
-The product feels like a trustworthy internal tool: one screen, one primary workflow, minimal ambiguity.
+The interface must remain narrowly scoped, operational, and deterministic. The design should discourage feature creep and keep the workflow obvious.
 
 ## Colors
 
-The palette is mostly neutral with role-based accents:
+The visual palette is neutral-first:
 
-- Primary text uses near-black for high legibility.
-- Muted secondary text supports explanatory copy without competing with form content.
-- Borders are light gray and carry most structural hierarchy.
-- Error and success are handled with soft tinted backgrounds and explicit border cues.
-- Dangerous actions are rendered with a saturated red background and white text.
-- Code/output blocks invert to dark background with light text for strong contrast and easy copy-reference scanning.
+- Near-black primary text for readability.
+- Muted secondary text for helper copy.
+- Light gray borders and subtle table headers for structure.
+- Soft green for success confirmation.
+- Soft red for validation or system errors.
+- Strong red only for destructive/override actions.
+- Inverted dark code panels for generated command/snippet details.
 
 ## Typography
 
-Typography follows a single-family system stack with semantically different weights and sizes:
+Typography uses a simple system sans stack and clear weight hierarchy:
 
-- Body copy is slightly enlarged (17px) for readability in long operational sessions.
-- Labels are bold to make form scanning quick.
-- Inputs and buttons use 16px for clarity and consistent control sizing.
-- Success feedback is larger and bold to signal completion.
-- Code snippets use monospace to distinguish command syntax and endpoint fragments.
-
-The hierarchy is standard HTML-leaning and intentionally unsurprising.
+- Body text at 17px for comfortable scanning during ops workflows.
+- Bold labels for form fields and status keys.
+- 16px controls for consistent input ergonomics.
+- Larger bold success feedback to signal completed generation.
+- Monospace for generated technical details and endpoint snippets.
 
 ## Layout
 
-Layout is a centered fixed-max container with stacked cards:
+The screen is a centered, fixed-width console with stacked cards.
 
-- Page width is capped at 980px.
-- Vertical rhythm uses compact rem-based spacing.
-- Forms are single-column and full-width controls.
-- Horizontal grouping appears only for adjacent action buttons.
-- Status data is presented as a key/value table for immediate operational readability.
+The configuration form must present exactly these user-configurable inputs:
 
-Spacing choices optimize scan speed and reduce cognitive load in repeated provisioning tasks.
+1. Cloud-init template (select)
+2. Box type (hardware vendor/model, select)
+3. Hostname
+4. IP address
+5. CIDR
+6. Gateway
+7. DNS servers
+
+No additional editable configuration controls should be introduced in this form.
+
+After generation, layout must prioritize a status/details area that clearly surfaces:
+
+- generated configuration identity (hostname, template, box type, network values)
+- generated timestamp
+- current lifecycle state, including whether the generated configuration has been consumed
 
 ## Elevation & Depth
 
-This system is visually flat. Hierarchy is achieved by borders, section grouping, and heading scale rather than shadows.
-
-Cards and table cells are separated with 1px strokes. The design avoids blur and layered depth effects to keep the interface crisp and deterministic.
+Depth is intentionally flat. Hierarchy is communicated through card borders, heading levels, and table structure rather than shadow-heavy layering.
 
 ## Shapes
 
-Shape language is conservative:
+Shape treatment is conservative and utility-first:
 
-- Cards use medium rounding (8px) to avoid harsh panel edges.
-- Most controls remain effectively native in silhouette.
-- Danger buttons drop decorative border treatment and rely on color for emphasis.
-
-Overall geometry stays simple and utilitarian.
+- Cards use 8px rounding.
+- Inputs/selects follow native rectangular geometry.
+- Destructive action button remains visually distinct via red fill.
 
 ## Components
 
-Component intent by role:
+Key components are constrained to the provisioning workflow:
 
-- Card: primary containment unit for status, instructions, and form workflows.
-- Status table: explicit key/value telemetry with highlighted header cells.
-- Feedback banners: low-friction inline messaging for success and error states.
-- Default buttons: neutral controls for non-destructive actions.
-- Danger button: high-salience destructive override (force replace).
-- Code block: high-contrast technical output region for command snippets and test instructions.
+- Configuration form card with the seven approved fields.
+- Generate action button for creating the config.
+- Status/details card with key/value telemetry.
+- Inline success/error feedback banners.
+- Generated detail blocks for copyable output.
+- Consumed-state visibility in the status area (must be explicit, never implicit).
 
-Interactive behavior is minimal and explicit. The only periodic motion is status refresh polling; there are no animated transitions.
+Component additions outside this workflow should be treated as out-of-scope unless they directly improve generation clarity or consumed-state visibility.
 
 ## Do's and Don'ts
 
 Do:
 
-- Preserve the neutral baseline and reserve strong color for semantic states.
-- Keep labels bold and controls full-width for fast data entry.
-- Maintain border-based separation and flat depth.
-- Keep success/error messaging inline and immediately visible near workflow context.
+- Keep the form limited to template, box type, hostname, IP, CIDR, gateway, and DNS.
+- Keep generated details and consumed status visible without extra navigation.
+- Preserve high-contrast text and border-based structure.
+- Keep feedback inline and close to the relevant workflow step.
 
 Don't:
 
-- Introduce decorative gradients, heavy shadows, or glassmorphism effects.
-- Replace monospace code regions with proportional text.
-- Add visual complexity that competes with status telemetry and form completion.
-- Use red for non-destructive actions.
+- Add optional configuration knobs unrelated to provisioning generation.
+- Hide consumed state behind ambiguous wording or deep navigation.
+- Introduce decorative visuals that reduce scan speed.
+- Use destructive color treatment for non-destructive actions.
