@@ -74,7 +74,7 @@ rounded:
 
 spacing:
   pageMarginY: 2rem
-  pageMaxWidth: 980px
+  pageMaxWidth: 1470px
   labelTop: 0.6rem
   controlPadding: 0.55rem
   buttonMarginTop: 0.8rem
