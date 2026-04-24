@@ -12,16 +12,32 @@ Single-binary Go web app for generating and serving cloud-init files for bare-me
   - `GET /` UI
   - `POST /provision` generate current config
   - `POST /consume` manual consume/clear
+  - `POST /force-replace` discard active config and allow immediate replacement
+  - `GET /status` current provisioning status as JSON
   - `GET /user-data` rendered cloud-init user-data
   - `GET /meta-data` rendered cloud-init meta-data
-- Keeps only one active config in memory (no DB)
+- Keeps only one active config at a time (in-memory by default; optional file-backed state via `STATE_FILE`)
 - Logs events to `./provision.log`
+
+Operational note: use log rotation for `provision.log` in long-running environments.
 
 ## Run
 
 ```bash
 go run .
 ```
+
+Environment options:
+
+- `PUBLIC_BASE_URL` (example: `https://portal.example.com`) — overrides generated user-data/meta-data URLs in UI output.
+- `TRUST_PROXY_HEADERS=true` — trust `X-Forwarded-Proto` and `X-Forwarded-Host` when building URLs (use only behind trusted proxy).
+- `STATE_FILE=/var/lib/cloud-init-portal/state.json` — enable optional file-backed persistence for active/consumed state.
+- `STATUS_RATE_LIMIT_PER_SEC=6` — per-client fixed-window rate limit for `GET /status`.
+- `WRITE_RATE_LIMIT_PER_SEC=3` — per-client fixed-window rate limit for write endpoints (`/provision`, `/consume`, `/force-replace`).
+
+Operational behavior:
+- responses include `X-Request-ID` for traceability.
+- lightweight fixed-window rate limiting is applied per client IP.
 
 ## Build
 
@@ -32,6 +48,8 @@ make build
 ```
 
 Then open: `http://127.0.0.1:8080`
+
+The HTTP server runs with conservative timeouts and graceful shutdown support on `SIGINT`/`SIGTERM`.
 
 ## Versioning (SemVer)
 
@@ -72,6 +90,12 @@ Template placeholders available:
 - `{{range .DNS}}...{{end}}`
 
 The app parses templates at startup with `missingkey=error`.
+
+Input validation:
+- `hostname` must be RFC1123-ish label (letters/numbers/dash, max 63)
+- `static_ip` and optional `gateway` must be valid IP addresses
+- each DNS entry must be a valid IP address
+- `cidr` must be in range `1-32`
 
 ## Example rendered user-data (from templates/example.yaml)
 
