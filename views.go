@@ -219,6 +219,7 @@ var indexPageTemplate = htmltmpl.Must(htmltmpl.New("index").Funcs(htmltmpl.FuncM
     <header>
       <h1>Cloud-Init Provision Portal</h1>
       <p class="muted">Configure exactly one provisioning request, then review generated details and consumed state.</p>
+      <p><a href="/logs">View Event History</a></p>
     </header>
 
     {{if .Error}}<div class="feedback err"><strong>Error:</strong> {{.Error}}</div>{{end}}

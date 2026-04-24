@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -139,4 +140,45 @@ func (s *Server) HandleForceReplace(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Logger.LogEvent(cfg, "force_replaced")
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *Server) HandleLogsPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/logs" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	eventFilter := r.URL.Query().Get("event")
+	hostnameFilter := r.URL.Query().Get("hostname")
+
+	data := logsPageData{
+		EventFilter:    eventFilter,
+		HostnameFilter: hostnameFilter,
+		Limit:          limit,
+		Events:         []LogEvent{},
+	}
+	if s.Logger == nil {
+		data.Error = "logger unavailable"
+		renderLogsPage(w, data)
+		return
+	}
+
+	events, err := s.Logger.ReadEvents(limit, eventFilter, hostnameFilter)
+	if err != nil {
+		data.Error = fmt.Sprintf("failed to read logs: %v", err)
+		renderLogsPage(w, data)
+		return
+	}
+	data.Events = events
+	renderLogsPage(w, data)
 }

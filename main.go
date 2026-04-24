@@ -45,10 +45,12 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", srv.HandleIndex)
+	mux.HandleFunc("/logs", srv.HandleLogsPage)
 	mux.HandleFunc("/provision", srv.HandleProvision)
 	mux.HandleFunc("/consume", srv.HandleConsume)
 	mux.HandleFunc("/force-replace", srv.HandleForceReplace)
 	mux.HandleFunc("/status", srv.HandleStatus)
+	mux.HandleFunc("/api/logs", srv.HandleLogsAPI)
 	mux.HandleFunc("/user-data", srv.HandleUserData)
 	mux.HandleFunc("/meta-data", srv.HandleMetaData)
 

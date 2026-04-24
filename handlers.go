@@ -43,6 +43,18 @@ type statusPayload struct {
 	Active       bool   `json:"active"`
 }
 
+type logsPayload struct {
+	Events []LogEvent `json:"events"`
+}
+
+type logsPageData struct {
+	Events         []LogEvent
+	EventFilter    string
+	HostnameFilter string
+	Limit          int
+	Error          string
+}
+
 func sortedBoxTypes(boxTypes map[string]BoxType) []BoxType {
 	names := BoxTypeNames(boxTypes)
 	out := make([]BoxType, 0, len(names))
