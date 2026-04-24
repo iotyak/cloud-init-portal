@@ -88,6 +88,7 @@ jobs:
 
       - name: Commit VERSION change
         if: steps.label.outputs.bump != 'none'
+        id: commit
         shell: bash
         run: |
           set -euo pipefail
@@ -97,8 +98,23 @@ jobs:
           git add VERSION
           if git diff --staged --quiet; then
             echo "No version change to commit."
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git commit -m "chore: bump version to ${{ steps.bump.outputs.next }} [skip ci]"
           git push origin HEAD:${{ github.event.repository.default_branch }}
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release for bumped version
+        if: steps.label.outputs.bump != 'none'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.next }}
+          target_commitish: ${{ steps.commit.outputs.sha }}
+          name: v${{ steps.bump.outputs.next }}
+          generate_release_notes: true
+          append_body: true
+          body: |
+            Automated release created by version-bump workflow.
+            Source PR: #${{ github.event.pull_request.number }}
