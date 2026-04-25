@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 func (s *Server) HandleStatus(w http.ResponseWriter, r *http.Request) {
@@ -58,4 +59,33 @@ func (s *Server) HandleMetaData(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte(cfg.MetaData))
+}
+
+func (s *Server) HandleLogsAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Logger == nil {
+		http.Error(w, "logger unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	eventFilter := r.URL.Query().Get("event")
+	hostnameFilter := r.URL.Query().Get("hostname")
+
+	events, err := s.Logger.ReadEvents(limit, eventFilter, hostnameFilter)
+	if err != nil {
+		http.Error(w, "failed to read logs", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(logsPayload{Events: events})
 }
