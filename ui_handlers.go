@@ -91,6 +91,12 @@ func (s *Server) HandleProvision(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Logger.LogEvent(cfg, "generated")
 
+	current := s.Store.GetCurrent()
+	message := fmt.Sprintf("Config ready for box: %s", hostname)
+	if current != nil && current.Hostname != hostname {
+		message = fmt.Sprintf("Config queued for box: %s", hostname)
+	}
+
 	baseURL := requestBaseURL(r, s.PublicBaseURL, s.TrustProxyHeaders)
 	userDataURL := baseURL + "/user-data"
 	metaDataURL := baseURL + "/meta-data"
@@ -99,9 +105,9 @@ func (s *Server) HandleProvision(w http.ResponseWriter, r *http.Request) {
 	s.renderIndex(w, indexData{
 		TemplateNames: TemplateNames(s.Templates),
 		BoxTypes:      sortedBoxTypes(s.BoxTypes),
-		Current:       s.Store.GetCurrent(),
+		Current:       current,
 		Status:        s.Store.CurrentStatus(),
-		Message:       fmt.Sprintf("Config ready for box: %s", hostname),
+		Message:       message,
 		Success: &successData{
 			Hostname:     hostname,
 			TemplateName: templateName,

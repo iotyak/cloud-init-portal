@@ -90,7 +90,7 @@ func TestHandleProvisionRejectsInvalidDNS(t *testing.T) {
 	}
 }
 
-func TestHandleProvisionSuccessAndConflict(t *testing.T) {
+func TestHandleProvisionSuccessAndQueuesWhenActiveExists(t *testing.T) {
 	srv := newTestServer(t)
 	form := baseProvisionForm()
 
@@ -105,8 +105,13 @@ func TestHandleProvisionSuccessAndConflict(t *testing.T) {
 	form2 := baseProvisionForm()
 	form2.Set("hostname", "edge-002")
 	rr2 := postForm(t, srv, "/provision", form2)
-	if rr2.Code != http.StatusConflict {
-		t.Fatalf("second status=%d want %d body=%q", rr2.Code, http.StatusConflict, rr2.Body.String())
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("second status=%d want %d body=%q", rr2.Code, http.StatusOK, rr2.Body.String())
+	}
+
+	snap := srv.Store.QueueSnapshot()
+	if len(snap.Pending) != 1 || snap.Pending[0].Hostname != "edge-002" {
+		t.Fatalf("pending=%+v", snap.Pending)
 	}
 }
 
