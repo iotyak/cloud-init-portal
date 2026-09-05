@@ -35,7 +35,7 @@ type QueueItem struct {
 }
 
 type QueueState struct {
-	Active    *QueueItem `json:"active"`
+	Active    *QueueItem  `json:"active"`
 	Pending   []QueueItem `json:"pending"`
 	Completed []QueueItem `json:"completed"`
 	Failed    []QueueItem `json:"failed"`
